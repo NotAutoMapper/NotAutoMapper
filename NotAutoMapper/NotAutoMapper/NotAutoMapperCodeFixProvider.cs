@@ -12,13 +12,14 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.Formatting;
 
 namespace NotAutoMapper
 {
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(NotAutoMapperCodeFixProvider)), Shared]
     public class NotAutoMapperCodeFixProvider : CodeFixProvider
     {
-        private const string title = "Make uppercase";
+        private const string title = "Complete Map method";
 
         public sealed override ImmutableArray<string> FixableDiagnosticIds
         {
@@ -34,40 +35,66 @@ namespace NotAutoMapper
         public sealed override async Task RegisterCodeFixesAsync(CodeFixContext context)
         {
             var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-
-            // TODO: Replace the following code with your own analysis, generating a CodeAction for each fix to suggest
+            
             var diagnostic = context.Diagnostics.First();
             var diagnosticSpan = diagnostic.Location.SourceSpan;
-
-            // Find the type declaration identified by the diagnostic.
-            var declaration = root.FindToken(diagnosticSpan.Start).Parent.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().First();
-
-            // Register a code action that will invoke the fix.
+            
+            var methodDeclaration = root
+                .FindToken(diagnosticSpan.Start)
+                .Parent
+                .AncestorsAndSelf()
+                .OfType<MethodDeclarationSyntax>()
+                .First();
+            
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: title,
-                    createChangedSolution: c => MakeUppercaseAsync(context.Document, declaration, c), 
-                    equivalenceKey: title),
+                    createChangedDocument: token => CreateMapBody(context, methodDeclaration, token),
+                    equivalenceKey: title
+                    ),
                 diagnostic);
         }
 
-        private async Task<Solution> MakeUppercaseAsync(Document document, TypeDeclarationSyntax typeDecl, CancellationToken cancellationToken)
+
+        private SyntaxTrivia GetLineBreakTrivia(SyntaxNode root)
         {
-            // Compute new uppercase name.
-            var identifierToken = typeDecl.Identifier;
-            var newName = identifierToken.Text.ToUpperInvariant();
+            var trivia = root
+                .DescendantTokens()
+                .SelectMany(token => token.TrailingTrivia)
+                .FirstOrDefault(t => t.IsKind(SyntaxKind.EndOfLineTrivia));
 
-            // Get the symbol representing the type to be renamed.
-            var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
-            var typeSymbol = semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken);
+            if (trivia == default(SyntaxTrivia))
+                trivia = SyntaxFactory.CarriageReturnLineFeed;
 
-            // Produce a new solution that has all references to that type renamed, including the declaration.
-            var originalSolution = document.Project.Solution;
-            var optionSet = originalSolution.Workspace.Options;
-            var newSolution = await Renamer.RenameSymbolAsync(document.Project.Solution, typeSymbol, newName, optionSet, cancellationToken).ConfigureAwait(false);
+            return trivia;
+        }
 
-            // Return the new solution with the now-uppercase type name.
-            return newSolution;
+
+        private async Task<Document> CreateMapBody(CodeFixContext context, MethodDeclarationSyntax methodDeclaration, CancellationToken cancellationToken)
+        {
+            var document = context.Document;
+            var oldRoot = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+            var linebreak = GetLineBreakTrivia(oldRoot);
+
+            var model = await context.Document.GetSemanticModelAsync().ConfigureAwait(false);
+
+            var parameter = methodDeclaration.ParameterList.Parameters[0] as ParameterSyntax;
+            var parameterType = model.GetTypeInfo(parameter.Type);
+            var returnType = model.GetTypeInfo(methodDeclaration.ReturnType);
+
+            var parameterProperties = parameterType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
+            var returnParameters = returnType.ConvertedType.GetMembers().OfType<IMethodSymbol>().FirstOrDefault(m => m.MethodKind == MethodKind.Constructor).Parameters;
+
+            var arguments = returnParameters
+                .Select(par => (Parameter: par, Property: parameterProperties.First(prop => prop.Name.Equals(par.Name, StringComparison.OrdinalIgnoreCase))))
+                .Select(p => SyntaxFactory.Argument(SyntaxFactory.ParseExpression($"{p.Parameter.Name}: {parameter.Identifier.Text}.{p.Property.Name}")));
+
+            var argumentList = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments));
+            var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression(methodDeclaration.ReturnType, argumentList, null)))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
+
+            var newRoot = oldRoot.ReplaceNode(methodDeclaration, newMethod);
+            
+            return document.WithSyntaxRoot(newRoot);
         }
     }
 }
