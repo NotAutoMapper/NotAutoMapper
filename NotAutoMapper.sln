@@ -3,11 +3,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27130.2020
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotAutoMapper", "NotAutoMapper\NotAutoMapper\NotAutoMapper.csproj", "{683C2FEE-342F-4AF4-9BF1-DDA4C961CA58}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NotAutoMapper", "NotAutoMapper\NotAutoMapper\NotAutoMapper.csproj", "{683C2FEE-342F-4AF4-9BF1-DDA4C961CA58}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotAutoMapper.Test", "NotAutoMapper\NotAutoMapper.Test\NotAutoMapper.Test.csproj", "{BEBEB2D8-0AA7-45DE-AB60-BC2F01634324}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NotAutoMapper.Test", "NotAutoMapper\NotAutoMapper.Test\NotAutoMapper.Test.csproj", "{BEBEB2D8-0AA7-45DE-AB60-BC2F01634324}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotAutoMapper.Vsix", "NotAutoMapper\NotAutoMapper.Vsix\NotAutoMapper.Vsix.csproj", "{B6FDCD15-4C32-4F90-915C-6C3550427B88}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0C344901-5550-4F3E-B269-DC238EA9C704}"
+	ProjectSection(SolutionItems) = preProject
+		Readme.md = Readme.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
