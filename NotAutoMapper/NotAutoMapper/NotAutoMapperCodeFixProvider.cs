@@ -35,17 +35,17 @@ namespace NotAutoMapper
         public sealed override async Task RegisterCodeFixesAsync(CodeFixContext context)
         {
             var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-            
+
             var diagnostic = context.Diagnostics.First();
             var diagnosticSpan = diagnostic.Location.SourceSpan;
-            
+
             var methodDeclaration = root
                 .FindToken(diagnosticSpan.Start)
                 .Parent
                 .AncestorsAndSelf()
                 .OfType<MethodDeclarationSyntax>()
                 .First();
-            
+
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: title,
@@ -76,6 +76,8 @@ namespace NotAutoMapper
             var oldRoot = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
             var linebreak = GetLineBreakTrivia(oldRoot);
 
+            var editor = await Microsoft.CodeAnalysis.Editing.DocumentEditor.CreateAsync(document);
+
             var model = await context.Document.GetSemanticModelAsync().ConfigureAwait(false);
 
             var parameter = methodDeclaration.ParameterList.Parameters[0] as ParameterSyntax;
@@ -85,16 +87,38 @@ namespace NotAutoMapper
             var parameterProperties = parameterType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
             var returnParameters = returnType.ConvertedType.GetMembers().OfType<IMethodSymbol>().FirstOrDefault(m => m.MethodKind == MethodKind.Constructor).Parameters;
 
+            var sourceParameterName = parameter.Identifier.Text;
+
             var arguments = returnParameters
                 .Select(par => (Parameter: par, Property: parameterProperties.First(prop => prop.Name.Equals(par.Name, StringComparison.OrdinalIgnoreCase))))
-                .Select(p => SyntaxFactory.Argument(SyntaxFactory.ParseExpression($"{p.Parameter.Name}: {parameter.Identifier.Text}.{p.Property.Name}")));
+                .Select(p => GetArgument(p.Parameter, p.Property, sourceParameterName));
 
             var argumentList = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments));
             var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression(methodDeclaration.ReturnType, argumentList, null)))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
 
-            var newRoot = oldRoot.ReplaceNode(methodDeclaration, newMethod);
+            editor.ReplaceNode(methodDeclaration, newMethod);
+
+            return editor.GetChangedDocument();
+        }
+
+        private ArgumentSyntax GetArgument(IParameterSymbol parameter, IPropertySymbol property, string sourceName)
+        {
+            var namecolon = SyntaxFactory.NameColon(parameter.Name);
             
-            return document.WithSyntaxRoot(newRoot);
+            var memberAccess = SyntaxFactory.MemberAccessExpression
+            (
+                kind: SyntaxKind.SimpleMemberAccessExpression,
+                expression: SyntaxFactory.IdentifierName(sourceName),
+                operatorToken: SyntaxFactory.Token(SyntaxKind.DotToken),
+                name: SyntaxFactory.IdentifierName(property.Name)
+            );
+
+            return SyntaxFactory.Argument
+            (
+                nameColon: namecolon,
+                refOrOutKeyword: SyntaxFactory.Token(SyntaxKind.None),
+                expression: memberAccess
+            );
         }
     }
 }
