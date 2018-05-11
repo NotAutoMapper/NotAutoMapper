@@ -26,46 +26,83 @@ namespace NotAutoMapper.Test
         public void TestMethod2()
         {
             var test = @"
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using System.Diagnostics;
+using System;
 
-    namespace ConsoleApplication1
+namespace ConsoleApplication1
+{
+    public class Person
     {
-        class TypeName
-        {   
+        public Person(string name)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
         }
-    }";
+
+        public string Name { get; }
+    }
+    public class Human
+    {
+        public Human(string name)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+        }
+
+        public string Name { get; }
+    }
+
+    public static class Mappings
+    {
+        static Human Map(Person person)
+        {
+            return null;
+        }
+    }
+}";
             var expected = new DiagnosticResult
             {
-                Id = "NotAutoMapper",
-                Message = String.Format("Type name '{0}' contains lowercase letters", "TypeName"),
-                Severity = DiagnosticSeverity.Warning,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 11, 15)
-                        }
+                Id = NotAutoMapperAnalyzer.DiagnosticId,
+                Message = "Map method from 'Person' to 'Human' can be completed",
+                Severity = DiagnosticSeverity.Info,
+                Locations = new[]
+                {
+                    new DiagnosticResultLocation("Test0.cs", 27, 22)
+                }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
             var fixtest = @"
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using System.Diagnostics;
+using System;
 
-    namespace ConsoleApplication1
+namespace ConsoleApplication1
+{
+    public class Person
     {
-        class TYPENAME
-        {   
+        public Person(string name)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
         }
-    }";
+
+        public string Name { get; }
+    }
+    public class Human
+    {
+        public Human(string name)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+        }
+
+        public string Name { get; }
+    }
+
+    public static class Mappings
+    {
+        static Human Map(Person person)
+        {
+            return new Human(name: person.Name);
+        }
+    }
+}";
+
             VerifyCSharpFix(test, fixtest);
         }
 
