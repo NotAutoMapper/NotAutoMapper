@@ -55,7 +55,21 @@ namespace NotAutoMapper
                 diagnostic);
         }
 
+        private SyntaxTrivia LineBreakTrivia
+        {
+            get
+            {
+                switch (FormattingOptions.NewLine.DefaultValue)
+                {
+                    case "\r": return SyntaxFactory.CarriageReturn;
+                    case "\r\n": return SyntaxFactory.CarriageReturnLineFeed;
+                    case "\n": return SyntaxFactory.LineFeed;
 
+                    default:
+                        throw new InvalidOperationException($"Unknown newline option: {FormattingOptions.NewLine.DefaultValue}.");
+                }
+            }
+        }
         private SyntaxTrivia GetLineBreakTrivia(SyntaxNode root)
         {
             var trivia = root
@@ -75,6 +89,7 @@ namespace NotAutoMapper
             var document = context.Document;
             var oldRoot = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
             var linebreak = GetLineBreakTrivia(oldRoot);
+            var linebreakSpace = new[] { linebreak, SyntaxFactory.Whitespace(" ") };
 
             var editor = await Microsoft.CodeAnalysis.Editing.DocumentEditor.CreateAsync(document);
 
@@ -94,7 +109,13 @@ namespace NotAutoMapper
                 .Select(p => GetArgument(p.Parameter, p.Property, sourceParameterName));
 
             var argumentList = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments));
-            var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression(methodDeclaration.ReturnType, argumentList, null)))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
+            argumentList = argumentList.WithLeadingTrivia(linebreakSpace).WithCloseParenToken(SyntaxFactory.Token(SyntaxKind.CloseParenToken).WithLeadingTrivia(linebreakSpace));
+            var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
+            (
+                type: methodDeclaration.ReturnType,
+                argumentList: argumentList,
+                initializer: null
+            )))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
 
             editor.ReplaceNode(methodDeclaration, newMethod);
 
@@ -103,8 +124,9 @@ namespace NotAutoMapper
 
         private ArgumentSyntax GetArgument(IParameterSymbol parameter, IPropertySymbol property, string sourceName)
         {
+            var newline = new[] { LineBreakTrivia, SyntaxFactory.Whitespace(new string(' ', FormattingOptions.TabSize.DefaultValue + 1)) };
             var namecolon = SyntaxFactory.NameColon(parameter.Name);
-            
+
             var memberAccess = SyntaxFactory.MemberAccessExpression
             (
                 kind: SyntaxKind.SimpleMemberAccessExpression,
@@ -118,7 +140,7 @@ namespace NotAutoMapper
                 nameColon: namecolon,
                 refOrOutKeyword: SyntaxFactory.Token(SyntaxKind.None),
                 expression: memberAccess
-            );
+            ).WithLeadingTrivia(newline);
         }
     }
 }

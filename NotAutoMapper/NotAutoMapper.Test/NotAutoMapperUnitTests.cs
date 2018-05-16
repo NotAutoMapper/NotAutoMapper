@@ -98,7 +98,10 @@ namespace ConsoleApplication1
     {
         static Human Map(Person person)
         {
-            return new Human(name: person.Name);
+            return new Human
+            (
+                name: person.Name
+            );
         }
     }
 }";
