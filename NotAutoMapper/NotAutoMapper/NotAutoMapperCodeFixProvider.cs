@@ -92,8 +92,6 @@ namespace NotAutoMapper
             var linebreak = GetLineBreakTrivia(oldRoot);
             var linebreakSpace = new[] { linebreak, SyntaxFactory.Whitespace(" ") };
 
-            var editor = await Microsoft.CodeAnalysis.Editing.DocumentEditor.CreateAsync(document);
-
             var model = await context.Document.GetSemanticModelAsync().ConfigureAwait(false);
 
             var parameter = methodDeclaration.ParameterList.Parameters[0] as ParameterSyntax;
@@ -119,9 +117,8 @@ namespace NotAutoMapper
                 initializer: null
             )))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
 
-            editor.ReplaceNode(methodDeclaration, newMethod);
-
-            return editor.GetChangedDocument();
+            var newRoot = oldRoot.ReplaceNode(methodDeclaration, newMethod);
+            return document.WithSyntaxRoot(newRoot);
         }
 
         private IEnumerable<(IPropertySymbol Property, IParameterSymbol Paramter)> GetMap(TypeInfo fromType, TypeInfo toType)
