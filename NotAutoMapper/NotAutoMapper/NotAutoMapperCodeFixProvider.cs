@@ -104,9 +104,9 @@ namespace NotAutoMapper
 
             var sourceParameterName = parameter.Identifier.Text;
 
-            var arguments = returnParameters
-                .Select(par => (Parameter: par, Property: parameterProperties.First(prop => prop.Name.Equals(par.Name, StringComparison.OrdinalIgnoreCase))))
-                .Select(p => GetArgument(p.Parameter, p.Property, sourceParameterName));
+            var mapping = GetMap(parameterType, returnType).ToList();
+
+            var arguments = mapping.Select(x => GetArgument(x.Paramter, x.Property, sourceParameterName));
 
             var argumentList = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments));
             argumentList = argumentList.WithLeadingTrivia(linebreakSpace).WithCloseParenToken(SyntaxFactory.Token(SyntaxKind.CloseParenToken).WithLeadingTrivia(linebreakSpace));
@@ -120,6 +120,27 @@ namespace NotAutoMapper
             editor.ReplaceNode(methodDeclaration, newMethod);
 
             return editor.GetChangedDocument();
+        }
+
+        private IEnumerable<(IPropertySymbol Property, IParameterSymbol Paramter)> GetMap(TypeInfo fromType, TypeInfo toType)
+        {
+            var constructor = toType.ConvertedType
+                .GetMembers()
+                .OfType<IMethodSymbol>()
+                .Where(m => m.MethodKind == MethodKind.Constructor && m.Parameters.Length > 0)
+                .SingleOrDefault();
+
+            if (constructor == null)
+                yield break;
+
+            var properties = fromType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
+            foreach (var parameter in constructor.Parameters)
+            {
+                var property = properties.FirstOrDefault(p => p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (parameter.Type == property.Type)
+                    yield return (property, parameter);
+            }
         }
 
         private ArgumentSyntax GetArgument(IParameterSymbol parameter, IPropertySymbol property, string sourceName)
