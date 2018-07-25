@@ -13,6 +13,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.Formatting;
+using NotAutoMapper.MappingModel;
 
 namespace NotAutoMapper
 {
@@ -104,6 +105,7 @@ namespace NotAutoMapper
 
             var sourceParameterName = parameter.Identifier.Text;
 
+            var mappingModel = MappingModelBuilder.GetTypeInfo(parameterType, returnType);
             var mapping = GetMap(parameterType, returnType).ToList();
 
             var arguments = mapping.Select(x => GetArgument(x.Paramter, x.Property, sourceParameterName));
