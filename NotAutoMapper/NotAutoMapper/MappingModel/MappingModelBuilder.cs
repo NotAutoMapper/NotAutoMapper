@@ -18,7 +18,7 @@ namespace NotAutoMapper.MappingModel
             var sourceLookup = sourceMembers.ToLookup(m => keySelector(m));
             var targetLookup = targetMembers.ToLookup(m => keySelector(m));
 
-            var keys = sourceLookup.Select(x => x.Key).Concat(targetLookup.Select(x => x.Key)).Distinct();
+            var keys = sourceLookup.Concat(targetLookup).Select(x => x.Key).Distinct();
 
             var memberPairs = keys
                 .Select(k => new MappingMemberPair(sourceLookup[k].FirstOrDefault(), targetLookup[k].FirstOrDefault(), false))
