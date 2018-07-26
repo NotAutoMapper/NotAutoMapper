@@ -13,15 +13,23 @@ namespace NotAutoMapper.MappingModel
             var targetMembers = GetMemberInfos(targetType);
 
             Func<MappingMemberInfo, (string name, ITypeSymbol type)> keySelector = m =>
-                (name: (m.PropertyName ?? m.ConstructorArgumentName).ToUpperInvariant(), type: m.Type);
+            (
+                name: (m.PropertyName ?? m.ConstructorArgumentName).ToUpperInvariant(),
+                type: m.Type
+            );
 
-            var sourceLookup = sourceMembers.ToLookup(m => keySelector(m));
-            var targetLookup = targetMembers.ToLookup(m => keySelector(m));
+            var sourceLookup = sourceMembers.ToLookup(keySelector);
+            var targetLookup = targetMembers.ToLookup(keySelector);
 
             var keys = sourceLookup.Concat(targetLookup).Select(x => x.Key).Distinct();
 
             var memberPairs = keys
-                .Select(k => new MappingMemberPair(sourceLookup[k].FirstOrDefault(), targetLookup[k].FirstOrDefault(), false))
+                .Select(k => new MappingMemberPair
+                (
+                    source: sourceLookup[k].FirstOrDefault(),
+                    target: targetLookup[k].FirstOrDefault(),
+                    isImplemented: false
+                ))
                 .ToImmutableList();
 
             return new MappingTypeInfo
@@ -41,7 +49,8 @@ namespace NotAutoMapper.MappingModel
 
             var getters = members
                 .Where(m => m.MethodKind == MethodKind.PropertyGet)
-                .Select(m => (
+                .Select(m =>
+                (
                     name: m.AssociatedSymbol.Name,
                     type: m.ReturnType,
                     accessMode: AccessMode.Getter
@@ -49,7 +58,8 @@ namespace NotAutoMapper.MappingModel
 
             var setters = members
                 .Where(m => m.MethodKind == MethodKind.PropertySet)
-                .Select(m => (
+                .Select(m =>
+                (
                     name: m.AssociatedSymbol.Name,
                     type: m.Parameters[0].Type,
                     accessMode: AccessMode.Setter
@@ -57,7 +67,8 @@ namespace NotAutoMapper.MappingModel
 
             var constructorArguments = members
                 .SingleOrDefault(m => m.MethodKind == MethodKind.Constructor && m.Parameters.Length > 0)
-                ?.Parameters.Select(m => (
+                ?.Parameters.Select(m =>
+                (
                     name: m.Name,
                     type: m.Type,
                     accessMode: AccessMode.ConstructorArgument
