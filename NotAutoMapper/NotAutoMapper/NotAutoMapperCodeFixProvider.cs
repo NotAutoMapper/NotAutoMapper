@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.Formatting;
 using NotAutoMapper.MappingModel;
+using System.Text;
 
 namespace NotAutoMapper
 {
@@ -69,7 +70,6 @@ namespace NotAutoMapper
             return trivia;
         }
 
-
         private async Task<Document> CreateMapBody(CodeFixContext context, MethodDeclarationSyntax methodDeclaration, CancellationToken cancellationToken)
         {
             var document = context.Document;
@@ -104,7 +104,16 @@ namespace NotAutoMapper
         {
             var arguments = typeInfo.MemberPairs.Select(m => GetArgument(sourceName, m));
 
-            return SyntaxFactory.ParseArgumentList("(" + string.Join(",\n", arguments) + ")");
+            var sb = new StringBuilder();
+            sb.Append("\r\n (\r\n");
+
+            foreach (var arg in arguments)
+                sb.Append("     " + arg.ToString() + "\r\n");
+
+            sb.Append(" )");
+            var tet = sb.ToString();
+
+            return SyntaxFactory.ParseArgumentList(sb.ToString());
         }
 
         private ArgumentSyntax GetArgument(string sourceName, MappingMemberPair member)
