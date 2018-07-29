@@ -1,18 +1,82 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
 using System.Collections.Immutable;
 using System.Linq;
-using Microsoft.CodeAnalysis;
 
 namespace NotAutoMapper.MappingModel
 {
     public static class MappingModelBuilder
     {
-        public static MappingTypeInfo GetTypeInfo(TypeInfo sourceType, TypeInfo targetType)
+        public static MappingTypeInfo GetTypeInfo(IMethodSymbol mapMethod)
+        {
+            if (mapMethod == null)
+                return null;
+
+            if (!mapMethod.Name.Equals("Map", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            if (mapMethod.ReturnsVoid || mapMethod.IsAsync || mapMethod.IsGenericMethod)
+                return null;
+
+            if (mapMethod.Parameters.IsEmpty)
+                return null;
+
+            var parameterType = mapMethod.Parameters.First().Type;
+            var returnType = mapMethod.ReturnType;
+
+            return GetTypeInfo(mapMethod, parameterType, returnType);
+        }
+        private static MappingTypeInfo GetTypeInfo(IMethodSymbol mapMethod, ITypeSymbol sourceType, ITypeSymbol targetType)
         {
             var sourceMembers = GetMemberInfos(sourceType);
             var targetMembers = GetMemberInfos(targetType);
 
-            Func<MappingMemberInfo, (string name, ITypeSymbol type)> keySelector = m =>
+            var memberPairs = GetMappingPairs
+            (
+                sourceMembers: sourceMembers,
+                targetMembers: targetMembers
+            );
+
+            var mappedParameters = GetMappedParameters(mapMethod);
+            memberPairs = memberPairs.Select(mp => new MappingMemberPair
+            (
+                source: mp.Source,
+                target: mp.Target,
+                isImplemented: mappedParameters.Contains(mp.Target?.ConstructorArgumentName)
+            )).ToImmutableList();
+
+            return new MappingTypeInfo
+            (
+                method: mapMethod,
+                sourceType: sourceType,
+                targetType: targetType,
+                memberPairs: memberPairs
+            );
+        }
+
+        private static IImmutableList<string> GetMappedParameters(IMethodSymbol mapMethod)
+        {
+            var methodSyntax = mapMethod.DeclaringSyntaxReferences.First().GetSyntax() as MethodDeclarationSyntax;
+            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
+
+            if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
+            {
+                return cre
+                    .ArgumentList
+                    .Arguments
+                    .Select(arg => arg.NameColon)
+                    .Where(n => n != null)
+                    .Select(n => n.Name.Identifier.Text)
+                    .ToImmutableList();
+            }
+
+            return ImmutableList<string>.Empty;
+        }
+
+        private static IImmutableList<MappingMemberPair> GetMappingPairs(IImmutableList<MappingMemberInfo> sourceMembers, IImmutableList<MappingMemberInfo> targetMembers)
+        {
+            (string name, ITypeSymbol type) keySelector(MappingMemberInfo m) =>
             (
                 name: (m.PropertyName ?? m.ConstructorArgumentName).ToUpperInvariant(),
                 type: m.Type
@@ -23,7 +87,7 @@ namespace NotAutoMapper.MappingModel
 
             var keys = sourceLookup.Concat(targetLookup).Select(x => x.Key).Distinct();
 
-            var memberPairs = keys
+            return keys
                 .Select(k => new MappingMemberPair
                 (
                     source: sourceLookup[k].FirstOrDefault(),
@@ -31,18 +95,11 @@ namespace NotAutoMapper.MappingModel
                     isImplemented: false
                 ))
                 .ToImmutableList();
-
-            return new MappingTypeInfo
-            (
-                sourceType: sourceType,
-                targetType: targetType,
-                memberPairs: memberPairs
-            );
         }
 
-        public static IImmutableList<MappingMemberInfo> GetMemberInfos(TypeInfo type)
+        public static IImmutableList<MappingMemberInfo> GetMemberInfos(ITypeSymbol type)
         {
-            var members = type.ConvertedType
+            var members = type
                 .GetMembers()
                 .OfType<IMethodSymbol>()
                 .ToArray();

@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.CodeAnalysis.Formatting;
 using NotAutoMapper.MappingModel;
+using System.Text;
 
 namespace NotAutoMapper
 {
@@ -50,117 +51,105 @@ namespace NotAutoMapper
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: title,
-                    createChangedDocument: token => CreateMapBody(context, methodDeclaration, token),
+                    createChangedDocument: token => ReplaceMapMethod(context, methodDeclaration, token),
                     equivalenceKey: title
                     ),
                 diagnostic);
         }
 
-        private SyntaxTrivia LineBreakTrivia
+        private async Task<Document> ReplaceMapMethod(CodeFixContext context, MethodDeclarationSyntax oldMethod, CancellationToken cancellationToken)
         {
-            get
-            {
-                switch (FormattingOptions.NewLine.DefaultValue)
-                {
-                    case "\r": return SyntaxFactory.CarriageReturn;
-                    case "\r\n": return SyntaxFactory.CarriageReturnLineFeed;
-                    case "\n": return SyntaxFactory.LineFeed;
+            var semanticModel = await context.Document.GetSemanticModelAsync(cancellationToken);
+            var newMethod = CreateMapMethod(oldMethod, semanticModel);
 
-                    default:
-                        throw new InvalidOperationException($"Unknown newline option: {FormattingOptions.NewLine.DefaultValue}.");
-                }
-            }
-        }
-        private SyntaxTrivia GetLineBreakTrivia(SyntaxNode root)
-        {
-            var trivia = root
-                .DescendantTokens()
-                .SelectMany(token => token.TrailingTrivia)
-                .FirstOrDefault(t => t.IsKind(SyntaxKind.EndOfLineTrivia));
+            var root = await context.Document.GetSyntaxRootAsync(cancellationToken);
 
-            if (trivia == default(SyntaxTrivia))
-                trivia = SyntaxFactory.CarriageReturnLineFeed;
-
-            return trivia;
+            return context.Document.WithSyntaxRoot(root.ReplaceNode(oldMethod, newMethod));
         }
 
-
-        private async Task<Document> CreateMapBody(CodeFixContext context, MethodDeclarationSyntax methodDeclaration, CancellationToken cancellationToken)
+        private MethodDeclarationSyntax CreateMapMethod(MethodDeclarationSyntax oldMethod, SemanticModel semanticModel)
         {
-            var document = context.Document;
-            var oldRoot = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-            var linebreak = GetLineBreakTrivia(oldRoot);
-            var linebreakSpace = new[] { linebreak, SyntaxFactory.Whitespace(" ") };
+            var parameter = oldMethod.ParameterList.Parameters[0] as ParameterSyntax;
 
-            var model = await context.Document.GetSemanticModelAsync().ConfigureAwait(false);
+            var mappingModel = MappingModelBuilder.GetTypeInfo(semanticModel.GetDeclaredSymbol(oldMethod));
 
-            var parameter = methodDeclaration.ParameterList.Parameters[0] as ParameterSyntax;
-            var parameterType = model.GetTypeInfo(parameter.Type);
-            var returnType = model.GetTypeInfo(methodDeclaration.ReturnType);
-
-            var parameterProperties = parameterType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
-            var returnParameters = returnType.ConvertedType.GetMembers().OfType<IMethodSymbol>().FirstOrDefault(m => m.MethodKind == MethodKind.Constructor).Parameters;
-
-            var sourceParameterName = parameter.Identifier.Text;
-
-            var mappingModel = MappingModelBuilder.GetTypeInfo(parameterType, returnType);
-            var mapping = GetMap(parameterType, returnType).ToList();
-
-            var arguments = mapping.Select(x => GetArgument(x.Paramter, x.Property, sourceParameterName));
-
-            var argumentList = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments));
-            argumentList = argumentList.WithLeadingTrivia(linebreakSpace).WithCloseParenToken(SyntaxFactory.Token(SyntaxKind.CloseParenToken).WithLeadingTrivia(linebreakSpace));
-            var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
+            var preMapped = GetExistingArguments(oldMethod);
+            var argumentList = GetArgumentList
             (
-                type: methodDeclaration.ReturnType,
+                sourceName: parameter.Identifier.Text,
+                typeInfo: mappingModel,
+                existingArguments: preMapped
+            );
+
+            var newMethod = oldMethod.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
+            (
+                type: oldMethod.ReturnType,
                 argumentList: argumentList,
                 initializer: null
-            )))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
+            )))).WithAdditionalAnnotations(Formatter.Annotation);
 
-            var newRoot = oldRoot.ReplaceNode(methodDeclaration, newMethod);
-            return document.WithSyntaxRoot(newRoot);
+            return newMethod;
         }
 
-        private IEnumerable<(IPropertySymbol Property, IParameterSymbol Paramter)> GetMap(TypeInfo fromType, TypeInfo toType)
+        private ImmutableDictionary<string, ExpressionSyntax> GetExistingArguments(MethodDeclarationSyntax methodSyntax)
         {
-            var constructor = toType.ConvertedType
-                .GetMembers()
-                .OfType<IMethodSymbol>()
-                .Where(m => m.MethodKind == MethodKind.Constructor && m.Parameters.Length > 0)
-                .SingleOrDefault();
+            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
 
-            if (constructor == null)
-                yield break;
-
-            var properties = fromType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
-            foreach (var parameter in constructor.Parameters)
+            if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
             {
-                var property = properties.FirstOrDefault(p => p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (parameter.Type == property.Type)
-                    yield return (property, parameter);
+                return cre
+                    .ArgumentList
+                    .Arguments
+                    .Where(n => n.NameColon != null)
+                    .ToImmutableDictionary(x => x.NameColon.Name.Identifier.Text, x => x.Expression);
             }
+
+            return ImmutableDictionary<string, ExpressionSyntax>.Empty;
         }
 
-        private ArgumentSyntax GetArgument(IParameterSymbol parameter, IPropertySymbol property, string sourceName)
+        private ArgumentListSyntax GetArgumentList(string sourceName, MappingTypeInfo typeInfo, ImmutableDictionary<string, ExpressionSyntax> existingArguments)
         {
-            var newline = new[] { LineBreakTrivia, SyntaxFactory.Whitespace(new string(' ', FormattingOptions.TabSize.DefaultValue + 1)) };
-            var namecolon = SyntaxFactory.NameColon(parameter.Name);
+            var arguments = typeInfo
+                .MemberPairs
+                .Where(arg => arg.Target != null)
+                .Select(m => GetArgument(sourceName, m, existingArguments))
+                .Where(x => x != null)
+                .ToImmutableList();
 
-            var memberAccess = SyntaxFactory.MemberAccessExpression
-            (
-                kind: SyntaxKind.SimpleMemberAccessExpression,
-                expression: SyntaxFactory.IdentifierName(sourceName),
-                operatorToken: SyntaxFactory.Token(SyntaxKind.DotToken),
-                name: SyntaxFactory.IdentifierName(property.Name)
-            );
+            var sb = new StringBuilder();
+            sb.Append("\r\n (\r\n");
+
+            for (int i = 0; i < arguments.Count; i++)
+            {
+                sb.Append("     " + arguments[i].ToString());
+                if (i < arguments.Count - 1)
+                    sb.Append(",");
+                sb.Append("\r\n");
+            }
+
+            sb.Append(" )");
+            var tet = sb.ToString();
+
+            return SyntaxFactory.ParseArgumentList(sb.ToString());
+        }
+
+        private ArgumentSyntax GetArgument(string sourceName, MappingMemberPair member, ImmutableDictionary<string, ExpressionSyntax> existingArguments)
+        {
+            if (!existingArguments.TryGetValue(member.Target.ConstructorArgumentName, out ExpressionSyntax expression))
+            {
+                if (member.Source != null)
+                    expression = SyntaxFactory.ParseExpression($"{sourceName}.{member.Source.PropertyName}");
+            }
+
+            if (expression == null)
+                return null;
 
             return SyntaxFactory.Argument
             (
-                nameColon: namecolon,
+                nameColon: SyntaxFactory.NameColon(member.Target.ConstructorArgumentName),
                 refOrOutKeyword: SyntaxFactory.Token(SyntaxKind.None),
-                expression: memberAccess
-            ).WithLeadingTrivia(newline);
+                expression: expression
+            );
         }
     }
 }
