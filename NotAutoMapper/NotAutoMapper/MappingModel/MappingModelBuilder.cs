@@ -48,7 +48,7 @@ namespace NotAutoMapper.MappingModel
 
         private static IImmutableList<MappingMemberPair> GetMappingPairs(IImmutableList<MappingMemberInfo> sourceMembers, IImmutableList<MappingMemberInfo> targetMembers)
         {
-            Func<MappingMemberInfo, (string name, ITypeSymbol type)> keySelector = m =>
+            (string name, ITypeSymbol type) keySelector(MappingMemberInfo m) =>
             (
                 name: (m.PropertyName ?? m.ConstructorArgumentName).ToUpperInvariant(),
                 type: m.Type
