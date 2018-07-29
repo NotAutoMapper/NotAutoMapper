@@ -51,53 +51,49 @@ namespace NotAutoMapper
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title: title,
-                    createChangedDocument: token => CreateMapBody(context, methodDeclaration, token),
+                    createChangedDocument: token => ReplaceMapMethod(context, methodDeclaration, token),
                     equivalenceKey: title
                     ),
                 diagnostic);
         }
 
-        private SyntaxTrivia GetLineBreakTrivia(SyntaxNode root)
+        private async Task<Document> ReplaceMapMethod(CodeFixContext context, MethodDeclarationSyntax oldMethod, CancellationToken cancellationToken)
         {
-            var trivia = root
-                .DescendantTokens()
-                .SelectMany(token => token.TrailingTrivia)
-                .FirstOrDefault(t => t.IsKind(SyntaxKind.EndOfLineTrivia));
+            var semanticModel = await context.Document.GetSemanticModelAsync(cancellationToken);
+            var newMethod = CreateMapMethod(oldMethod, semanticModel);
 
-            if (trivia == default(SyntaxTrivia))
-                trivia = SyntaxFactory.CarriageReturnLineFeed;
+            var root = await context.Document.GetSyntaxRootAsync(cancellationToken);
 
-            return trivia;
+            return context.Document.WithSyntaxRoot(root.ReplaceNode(oldMethod, newMethod));
         }
 
-        private async Task<Document> CreateMapBody(CodeFixContext context, MethodDeclarationSyntax methodDeclaration, CancellationToken cancellationToken)
+        private MethodDeclarationSyntax CreateMapMethod(MethodDeclarationSyntax oldMethod, SemanticModel semanticModel)
         {
-            var document = context.Document;
-            var oldRoot = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-            var linebreak = GetLineBreakTrivia(oldRoot);
-            var linebreakSpace = new[] { linebreak, SyntaxFactory.Whitespace(" ") };
+            var parameter = oldMethod.ParameterList.Parameters[0] as ParameterSyntax;
 
-            var model = await context.Document.GetSemanticModelAsync().ConfigureAwait(false);
+            var parameterType = semanticModel.GetTypeInfo(parameter.Type);
+            var returnType = semanticModel.GetTypeInfo(oldMethod.ReturnType);
 
-            var parameter = methodDeclaration.ParameterList.Parameters[0] as ParameterSyntax;
-            var parameterType = model.GetTypeInfo(parameter.Type);
-            var returnType = model.GetTypeInfo(methodDeclaration.ReturnType);
-
-            var sourceParameterName = parameter.Identifier.Text;
-
-            var mappingModel = MappingModelBuilder.GetTypeInfo(parameterType.ConvertedType, returnType.ConvertedType);
-
-            var argumentList = GetArgumentList(sourceParameterName, mappingModel);
-
-            var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
+            var mappingModel = MappingModelBuilder.GetTypeInfo
             (
-                type: methodDeclaration.ReturnType,
+                sourceType: parameterType.ConvertedType,
+                targetType: returnType.ConvertedType
+            );
+
+            var argumentList = GetArgumentList
+            (
+                sourceName: parameter.Identifier.Text,
+                typeInfo: mappingModel
+            );
+
+            var newMethod = oldMethod.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
+            (
+                type: oldMethod.ReturnType,
                 argumentList: argumentList,
                 initializer: null
             )))).WithAdditionalAnnotations(Formatter.Annotation);
 
-            var newRoot = oldRoot.ReplaceNode(methodDeclaration, newMethod);
-            return document.WithSyntaxRoot(newRoot);
+            return newMethod;
         }
 
         private ArgumentListSyntax GetArgumentList(string sourceName, MappingTypeInfo typeInfo)
