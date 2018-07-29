@@ -31,6 +31,23 @@ namespace NotAutoMapper.MappingModel
             var sourceMembers = GetMemberInfos(sourceType);
             var targetMembers = GetMemberInfos(targetType);
 
+            var memberPairs = GetMappingPairs
+            (
+                sourceMembers: sourceMembers,
+                targetMembers: targetMembers
+            );
+
+            return new MappingTypeInfo
+            (
+                method: mapMethod,
+                sourceType: sourceType,
+                targetType: targetType,
+                memberPairs: memberPairs
+            );
+        }
+
+        private static IImmutableList<MappingMemberPair> GetMappingPairs(IImmutableList<MappingMemberInfo> sourceMembers, IImmutableList<MappingMemberInfo> targetMembers)
+        {
             Func<MappingMemberInfo, (string name, ITypeSymbol type)> keySelector = m =>
             (
                 name: (m.PropertyName ?? m.ConstructorArgumentName).ToUpperInvariant(),
@@ -42,7 +59,7 @@ namespace NotAutoMapper.MappingModel
 
             var keys = sourceLookup.Concat(targetLookup).Select(x => x.Key).Distinct();
 
-            var memberPairs = keys
+            return keys
                 .Select(k => new MappingMemberPair
                 (
                     source: sourceLookup[k].FirstOrDefault(),
@@ -50,14 +67,6 @@ namespace NotAutoMapper.MappingModel
                     isImplemented: false
                 ))
                 .ToImmutableList();
-
-            return new MappingTypeInfo
-            (
-                method: mapMethod,
-                sourceType: sourceType,
-                targetType: targetType,
-                memberPairs: memberPairs
-            );
         }
 
         public static IImmutableList<MappingMemberInfo> GetMemberInfos(ITypeSymbol type)
