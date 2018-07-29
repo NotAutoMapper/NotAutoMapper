@@ -7,6 +7,33 @@ namespace NotAutoMapper.MappingModel
 {
     public static class MappingModelBuilder
     {
+        public static MappingTypeInfo GetTypeInfo(IMethodSymbol mapMethod)
+        {
+            if (mapMethod == null)
+                return null;
+
+            if (!mapMethod.Name.Equals("Map", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            if (mapMethod.ReturnsVoid || mapMethod.IsAsync || mapMethod.IsGenericMethod)
+                return null;
+
+            if (mapMethod.Parameters.IsEmpty)
+                return null;
+
+            var parameterType = mapMethod.Parameters.First().Type;
+            var returnType = mapMethod.ReturnType;
+
+            var mappingInfo = GetTypeInfo(parameterType, returnType);
+
+            return new MappingTypeInfo
+            (
+                method: mapMethod,
+                sourceType: mappingInfo.SourceType,
+                targetType: mappingInfo.TargetType,
+                memberPairs: mappingInfo.MemberPairs
+            );
+        }
         public static MappingTypeInfo GetTypeInfo(ITypeSymbol sourceType, ITypeSymbol targetType)
         {
             var sourceMembers = GetMemberInfos(sourceType);
@@ -34,6 +61,7 @@ namespace NotAutoMapper.MappingModel
 
             return new MappingTypeInfo
             (
+                method: null,
                 sourceType: sourceType,
                 targetType: targetType,
                 memberPairs: memberPairs
