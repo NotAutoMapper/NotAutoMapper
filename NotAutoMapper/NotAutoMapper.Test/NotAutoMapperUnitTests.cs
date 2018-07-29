@@ -106,7 +106,12 @@ namespace ConsoleApplication1
     }
 }";
 
-            VerifyCSharpFix(test, fixtest);
+            VerifyCSharpFix
+            (
+                oldSource: test, 
+                newSource: fixtest,
+                allowNewCompilerDiagnostics: true
+            );
         }
 
         protected override CodeFixProvider GetCSharpCodeFixProvider()
