@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using NotAutoMapper.MappingModel;
 
 namespace NotAutoMapper
 {
@@ -35,25 +36,27 @@ namespace NotAutoMapper
 
         private static void AnalyzeSymbol(SymbolAnalysisContext context)
         {
-            if (!(context.Symbol is IMethodSymbol method))
+            var method = context.Symbol as IMethodSymbol;
+
+            var mappingModel = MappingModelBuilder.GetTypeInfo(method);
+            if (mappingModel == null)
                 return;
 
-            if (!method.Name.Equals("Map", StringComparison.OrdinalIgnoreCase))
-                return;
+            var startIndex = context.Symbol.Locations.First().SourceSpan.Start;
+            var semanticModel = context.Compilation.GetSemanticModel(method.DeclaringSyntaxReferences.First().SyntaxTree);
 
-            if (method.ReturnsVoid || method.IsAsync || method.IsGenericMethod)
-                return;
+            string GetSymbolDisplayString(ISymbol symbol) => symbol.ToMinimalDisplayString(semanticModel, startIndex);
 
-            if (method.Parameters.IsEmpty)
-                return;
-
-            var model = context.Compilation.GetSemanticModel(method.DeclaringSyntaxReferences.First().SyntaxTree);
-            var paramType = method.Parameters.First().Type;
-            var returnType = method.ReturnType;
-
-            var start = context.Symbol.Locations.First().SourceSpan.Start;
-
-            context.ReportDiagnostic(Diagnostic.Create(Rule, method.Locations[0], paramType.ToMinimalDisplayString(model, start), returnType.ToMinimalDisplayString(model, start)));
+            if (mappingModel.MemberPairs.Any(member => !member.IsImplemented))
+            {
+                context.ReportDiagnostic(Diagnostic.Create
+                (
+                    Rule,
+                    method.Locations[0],
+                    GetSymbolDisplayString(mappingModel.SourceType),
+                    GetSymbolDisplayString(mappingModel.TargetType)
+                ));
+            }
         }
     }
 }
