@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis;
+using System;
 using System.Collections.Immutable;
 using System.Linq;
-using Microsoft.CodeAnalysis;
 
 namespace NotAutoMapper.MappingModel
 {
@@ -24,17 +24,9 @@ namespace NotAutoMapper.MappingModel
             var parameterType = mapMethod.Parameters.First().Type;
             var returnType = mapMethod.ReturnType;
 
-            var mappingInfo = GetTypeInfo(parameterType, returnType);
-
-            return new MappingTypeInfo
-            (
-                method: mapMethod,
-                sourceType: mappingInfo.SourceType,
-                targetType: mappingInfo.TargetType,
-                memberPairs: mappingInfo.MemberPairs
-            );
+            return GetTypeInfo(mapMethod, parameterType, returnType);
         }
-        public static MappingTypeInfo GetTypeInfo(ITypeSymbol sourceType, ITypeSymbol targetType)
+        private static MappingTypeInfo GetTypeInfo(IMethodSymbol mapMethod, ITypeSymbol sourceType, ITypeSymbol targetType)
         {
             var sourceMembers = GetMemberInfos(sourceType);
             var targetMembers = GetMemberInfos(targetType);
@@ -61,7 +53,7 @@ namespace NotAutoMapper.MappingModel
 
             return new MappingTypeInfo
             (
-                method: null,
+                method: mapMethod,
                 sourceType: sourceType,
                 targetType: targetType,
                 memberPairs: memberPairs

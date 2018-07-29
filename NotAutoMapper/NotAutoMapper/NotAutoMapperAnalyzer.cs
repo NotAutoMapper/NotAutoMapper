@@ -43,7 +43,9 @@ namespace NotAutoMapper
                 return;
 
             var startIndex = context.Symbol.Locations.First().SourceSpan.Start;
-            var semanticModel = context.Compilation.GetSemanticModel(method.DeclaringSyntaxReferences.First().SyntaxTree);
+            var methodDeclaration = method.DeclaringSyntaxReferences.First();
+
+            var semanticModel = context.Compilation.GetSemanticModel(methodDeclaration.SyntaxTree);
 
             string GetSymbolDisplayString(ISymbol symbol) => symbol.ToMinimalDisplayString(semanticModel, startIndex);
 

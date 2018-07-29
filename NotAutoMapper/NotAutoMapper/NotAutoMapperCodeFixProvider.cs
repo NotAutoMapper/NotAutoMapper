@@ -70,15 +70,8 @@ namespace NotAutoMapper
         private MethodDeclarationSyntax CreateMapMethod(MethodDeclarationSyntax oldMethod, SemanticModel semanticModel)
         {
             var parameter = oldMethod.ParameterList.Parameters[0] as ParameterSyntax;
-
-            var parameterType = semanticModel.GetTypeInfo(parameter.Type);
-            var returnType = semanticModel.GetTypeInfo(oldMethod.ReturnType);
-
-            var mappingModel = MappingModelBuilder.GetTypeInfo
-            (
-                sourceType: parameterType.ConvertedType,
-                targetType: returnType.ConvertedType
-            );
+            
+            var mappingModel = MappingModelBuilder.GetTypeInfo(semanticModel.GetDeclaredSymbol(oldMethod));
 
             var argumentList = GetArgumentList
             (
