@@ -56,21 +56,6 @@ namespace NotAutoMapper
                 diagnostic);
         }
 
-        private SyntaxTrivia LineBreakTrivia
-        {
-            get
-            {
-                switch (FormattingOptions.NewLine.DefaultValue)
-                {
-                    case "\r": return SyntaxFactory.CarriageReturn;
-                    case "\r\n": return SyntaxFactory.CarriageReturnLineFeed;
-                    case "\n": return SyntaxFactory.LineFeed;
-
-                    default:
-                        throw new InvalidOperationException($"Unknown newline option: {FormattingOptions.NewLine.DefaultValue}.");
-                }
-            }
-        }
         private SyntaxTrivia GetLineBreakTrivia(SyntaxNode root)
         {
             var trivia = root
@@ -97,9 +82,6 @@ namespace NotAutoMapper
             var parameter = methodDeclaration.ParameterList.Parameters[0] as ParameterSyntax;
             var parameterType = model.GetTypeInfo(parameter.Type);
             var returnType = model.GetTypeInfo(methodDeclaration.ReturnType);
-
-            var parameterProperties = parameterType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
-            var returnParameters = returnType.ConvertedType.GetMembers().OfType<IMethodSymbol>().FirstOrDefault(m => m.MethodKind == MethodKind.Constructor).Parameters;
 
             var sourceParameterName = parameter.Identifier.Text;
 
