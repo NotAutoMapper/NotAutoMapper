@@ -7,7 +7,7 @@ namespace NotAutoMapper.MappingModel
 {
     public static class MappingModelBuilder
     {
-        public static MappingTypeInfo GetTypeInfo(TypeInfo sourceType, TypeInfo targetType)
+        public static MappingTypeInfo GetTypeInfo(ITypeSymbol sourceType, ITypeSymbol targetType)
         {
             var sourceMembers = GetMemberInfos(sourceType);
             var targetMembers = GetMemberInfos(targetType);
@@ -40,9 +40,9 @@ namespace NotAutoMapper.MappingModel
             );
         }
 
-        public static IImmutableList<MappingMemberInfo> GetMemberInfos(TypeInfo type)
+        public static IImmutableList<MappingMemberInfo> GetMemberInfos(ITypeSymbol type)
         {
-            var members = type.ConvertedType
+            var members = type
                 .GetMembers()
                 .OfType<IMethodSymbol>()
                 .ToArray();

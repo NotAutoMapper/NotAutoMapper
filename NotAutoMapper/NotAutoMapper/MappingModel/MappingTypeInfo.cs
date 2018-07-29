@@ -6,15 +6,15 @@ namespace NotAutoMapper.MappingModel
 {
     public class MappingTypeInfo
     {
-        public MappingTypeInfo(TypeInfo sourceType, TypeInfo targetType, IImmutableList<MappingMemberPair> memberPairs)
+        public MappingTypeInfo(ITypeSymbol sourceType, ITypeSymbol targetType, IImmutableList<MappingMemberPair> memberPairs)
         {
             SourceType = sourceType;
             TargetType = targetType;
             MemberPairs = memberPairs ?? throw new ArgumentNullException(nameof(memberPairs));
         }
 
-        public TypeInfo SourceType { get; }
-        public TypeInfo TargetType { get; }
+        public ITypeSymbol SourceType { get; }
+        public ITypeSymbol TargetType { get; }
         public IImmutableList<MappingMemberPair> MemberPairs { get; }
     }
 }
