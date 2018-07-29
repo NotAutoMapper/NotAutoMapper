@@ -114,6 +114,111 @@ namespace ConsoleApplication1
             );
         }
 
+        //Diagnostic and CodeFix both triggered and checked for
+        [TestMethod]
+        public void TestMethod3()
+        {
+            var test = @"
+using System;
+
+namespace ConsoleApplication1
+{
+    public class Person
+    {
+        public Person(string name, int age)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Age = age;
+        }
+
+        public string Name { get; }
+        public int Age { get; }
+    }
+    public class Human
+    {
+        public Human(string name, int age)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Age = age;
+        }
+
+        public string Name { get; }
+        public int Age { get; }
+    }
+
+    public static class Mappings
+    {
+        static Human Map(Person person)
+        {
+            return new Human
+            (
+                name: person.Name
+            );
+        }
+    }
+}";
+            var expected = new DiagnosticResult
+            {
+                Id = NotAutoMapperAnalyzer.DiagnosticId,
+                Message = "Map method from 'Person' to 'Human' can be completed",
+                Severity = DiagnosticSeverity.Info,
+                Locations = new[]
+                {
+                    new DiagnosticResultLocation("Test0.cs", 27, 22)
+                }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+
+            var fixtest = @"
+using System;
+
+namespace ConsoleApplication1
+{
+    public class Person
+    {
+        public Person(string name, int age)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Age = age;
+        }
+
+        public string Name { get; }
+        public int Age { get; }
+    }
+    public class Human
+    {
+        public Human(string name, int age)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Age = age;
+        }
+
+        public string Name { get; }
+        public int Age { get; }
+    }
+
+    public static class Mappings
+    {
+        static Human Map(Person person)
+        {
+            return new Human
+            (
+                name: person.Name,
+                age: person.Age
+            );
+        }
+    }
+}";
+
+            VerifyCSharpFix
+            (
+                oldSource: test,
+                newSource: fixtest,
+                allowNewCompilerDiagnostics: true
+            );
+        }
+
         protected override CodeFixProvider GetCSharpCodeFixProvider()
         {
             return new NotAutoMapperCodeFixProvider();
