@@ -70,13 +70,15 @@ namespace NotAutoMapper
         private MethodDeclarationSyntax CreateMapMethod(MethodDeclarationSyntax oldMethod, SemanticModel semanticModel)
         {
             var parameter = oldMethod.ParameterList.Parameters[0] as ParameterSyntax;
-            
+
             var mappingModel = MappingModelBuilder.GetTypeInfo(semanticModel.GetDeclaredSymbol(oldMethod));
 
+            var preMapped = GetExistingArguments(oldMethod);
             var argumentList = GetArgumentList
             (
                 sourceName: parameter.Identifier.Text,
-                typeInfo: mappingModel
+                typeInfo: mappingModel,
+                existingArguments: preMapped
             );
 
             var newMethod = oldMethod.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
@@ -89,15 +91,41 @@ namespace NotAutoMapper
             return newMethod;
         }
 
-        private ArgumentListSyntax GetArgumentList(string sourceName, MappingTypeInfo typeInfo)
+        private ImmutableDictionary<string, ExpressionSyntax> GetExistingArguments(MethodDeclarationSyntax methodSyntax)
         {
-            var arguments = typeInfo.MemberPairs.Select(m => GetArgument(sourceName, m));
+            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
+
+            if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
+            {
+                return cre
+                    .ArgumentList
+                    .Arguments
+                    .Where(n => n.NameColon != null)
+                    .ToImmutableDictionary(x => x.NameColon.Name.Identifier.Text, x => x.Expression);
+            }
+
+            return ImmutableDictionary<string, ExpressionSyntax>.Empty;
+        }
+
+        private ArgumentListSyntax GetArgumentList(string sourceName, MappingTypeInfo typeInfo, ImmutableDictionary<string, ExpressionSyntax> existingArguments)
+        {
+            var arguments = typeInfo
+                .MemberPairs
+                .Where(arg => arg.Target != null)
+                .Select(m => GetArgument(sourceName, m, existingArguments))
+                .Where(x => x != null)
+                .ToImmutableList();
 
             var sb = new StringBuilder();
             sb.Append("\r\n (\r\n");
 
-            foreach (var arg in arguments)
-                sb.Append("     " + arg.ToString() + "\r\n");
+            for (int i = 0; i < arguments.Count; i++)
+            {
+                sb.Append("     " + arguments[i].ToString());
+                if (i < arguments.Count - 1)
+                    sb.Append(",");
+                sb.Append("\r\n");
+            }
 
             sb.Append(" )");
             var tet = sb.ToString();
@@ -105,9 +133,16 @@ namespace NotAutoMapper
             return SyntaxFactory.ParseArgumentList(sb.ToString());
         }
 
-        private ArgumentSyntax GetArgument(string sourceName, MappingMemberPair member)
+        private ArgumentSyntax GetArgument(string sourceName, MappingMemberPair member, ImmutableDictionary<string, ExpressionSyntax> existingArguments)
         {
-            var expression = SyntaxFactory.ParseExpression($"{sourceName}.{member.Source.PropertyName}");
+            if (!existingArguments.TryGetValue(member.Target.ConstructorArgumentName, out ExpressionSyntax expression))
+            {
+                if (member.Source != null)
+                    expression = SyntaxFactory.ParseExpression($"{sourceName}.{member.Source.PropertyName}");
+            }
+
+            if (expression == null)
+                return null;
 
             return SyntaxFactory.Argument
             (

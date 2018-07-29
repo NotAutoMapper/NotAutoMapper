@@ -49,7 +49,7 @@ namespace NotAutoMapper
 
             string GetSymbolDisplayString(ISymbol symbol) => symbol.ToMinimalDisplayString(semanticModel, startIndex);
 
-            if (mappingModel.MemberPairs.Any(member => !member.IsImplemented))
+            if (mappingModel.MemberPairs.Any(member => !member.IsImplemented && member.Target != null && (member.Source != null || member.IsImplemented)))
             {
                 context.ReportDiagnostic(Diagnostic.Create
                 (
