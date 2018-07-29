@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Immutable;
 using System.Linq;
@@ -37,6 +38,14 @@ namespace NotAutoMapper.MappingModel
                 targetMembers: targetMembers
             );
 
+            var mappedParameters = GetMappedParameters(mapMethod);
+            memberPairs = memberPairs.Select(mp => new MappingMemberPair
+            (
+                source: mp.Source,
+                target: mp.Target,
+                isImplemented: mappedParameters.Contains(mp.Target?.ConstructorArgumentName)
+            )).ToImmutableList();
+
             return new MappingTypeInfo
             (
                 method: mapMethod,
@@ -44,6 +53,25 @@ namespace NotAutoMapper.MappingModel
                 targetType: targetType,
                 memberPairs: memberPairs
             );
+        }
+
+        private static IImmutableList<string> GetMappedParameters(IMethodSymbol mapMethod)
+        {
+            var methodSyntax = mapMethod.DeclaringSyntaxReferences.First().GetSyntax() as MethodDeclarationSyntax;
+            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
+
+            if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
+            {
+                return cre
+                    .ArgumentList
+                    .Arguments
+                    .Select(arg => arg.NameColon)
+                    .Where(n => n != null)
+                    .Select(n => n.Name.Identifier.Text)
+                    .ToImmutableList();
+            }
+
+            return ImmutableList<string>.Empty;
         }
 
         private static IImmutableList<MappingMemberPair> GetMappingPairs(IImmutableList<MappingMemberInfo> sourceMembers, IImmutableList<MappingMemberInfo> targetMembers)
