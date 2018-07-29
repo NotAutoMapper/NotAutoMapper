@@ -104,63 +104,37 @@ namespace NotAutoMapper
             var sourceParameterName = parameter.Identifier.Text;
 
             var mappingModel = MappingModelBuilder.GetTypeInfo(parameterType.ConvertedType, returnType.ConvertedType);
-            var mapping = GetMap(parameterType, returnType).ToList();
 
-            var arguments = mapping.Select(x => GetArgument(x.Paramter, x.Property, sourceParameterName));
+            var argumentList = GetArgumentList(sourceParameterName, mappingModel);
 
-            var argumentList = SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(arguments));
-            argumentList = argumentList.WithLeadingTrivia(linebreakSpace).WithCloseParenToken(SyntaxFactory.Token(SyntaxKind.CloseParenToken).WithLeadingTrivia(linebreakSpace));
             var newMethod = methodDeclaration.WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(SyntaxFactory.ObjectCreationExpression
             (
                 type: methodDeclaration.ReturnType,
                 argumentList: argumentList,
                 initializer: null
-            )))).WithTrailingTrivia(linebreak).WithAdditionalAnnotations(Formatter.Annotation);
+            )))).WithAdditionalAnnotations(Formatter.Annotation);
 
             var newRoot = oldRoot.ReplaceNode(methodDeclaration, newMethod);
             return document.WithSyntaxRoot(newRoot);
         }
 
-        private IEnumerable<(IPropertySymbol Property, IParameterSymbol Paramter)> GetMap(TypeInfo fromType, TypeInfo toType)
+        private ArgumentListSyntax GetArgumentList(string sourceName, MappingTypeInfo typeInfo)
         {
-            var constructor = toType.ConvertedType
-                .GetMembers()
-                .OfType<IMethodSymbol>()
-                .Where(m => m.MethodKind == MethodKind.Constructor && m.Parameters.Length > 0)
-                .SingleOrDefault();
+            var arguments = typeInfo.MemberPairs.Select(m => GetArgument(sourceName, m));
 
-            if (constructor == null)
-                yield break;
-
-            var properties = fromType.ConvertedType.GetMembers().OfType<IPropertySymbol>().ToImmutableArray();
-            foreach (var parameter in constructor.Parameters)
-            {
-                var property = properties.FirstOrDefault(p => p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (parameter.Type == property.Type)
-                    yield return (property, parameter);
-            }
+            return SyntaxFactory.ParseArgumentList("(" + string.Join(",\n", arguments) + ")");
         }
 
-        private ArgumentSyntax GetArgument(IParameterSymbol parameter, IPropertySymbol property, string sourceName)
+        private ArgumentSyntax GetArgument(string sourceName, MappingMemberPair member)
         {
-            var newline = new[] { LineBreakTrivia, SyntaxFactory.Whitespace(new string(' ', FormattingOptions.TabSize.DefaultValue + 1)) };
-            var namecolon = SyntaxFactory.NameColon(parameter.Name);
-
-            var memberAccess = SyntaxFactory.MemberAccessExpression
-            (
-                kind: SyntaxKind.SimpleMemberAccessExpression,
-                expression: SyntaxFactory.IdentifierName(sourceName),
-                operatorToken: SyntaxFactory.Token(SyntaxKind.DotToken),
-                name: SyntaxFactory.IdentifierName(property.Name)
-            );
+            var expression = SyntaxFactory.ParseExpression($"{sourceName}.{member.Source.PropertyName}");
 
             return SyntaxFactory.Argument
             (
-                nameColon: namecolon,
+                nameColon: SyntaxFactory.NameColon(member.Target.ConstructorArgumentName),
                 refOrOutKeyword: SyntaxFactory.Token(SyntaxKind.None),
-                expression: memberAccess
-            ).WithLeadingTrivia(newline);
+                expression: expression
+            );
         }
     }
 }
