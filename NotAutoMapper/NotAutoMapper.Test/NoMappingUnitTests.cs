@@ -8,13 +8,52 @@ namespace NotAutoMapper.Test
     [TestClass]
     public class NoMappingUnitTests : CodeFixVerifier
     {
-        //No diagnostics expected to show up
         [TestMethod]
         public void NoMapEmpty()
         {
-            var test = @"";
+            VerifyCSharpDiagnostic("");
+        }
 
-            VerifyCSharpDiagnostic(test);
+        [TestMethod]
+        public void NoMapPreMapped()
+        {
+            VerifyCSharpDiagnostic(@"
+public class Human
+{
+    public Human(string name, int age)
+    {
+        Name = name;
+        Age = age;
+    }
+
+    public string Name { get; }
+    public int Age { get; }
+}
+
+public class Monkey
+{
+    public Monkey(string name, int age)
+    {
+        Name = name;
+        Age = age;
+    }
+
+    public string Name { get; }
+    public int Age { get; }
+}
+
+public class MyMapper
+{
+    public Monkey Map(Human dto)
+    {
+        return new Monkey
+        (
+            name: dto.Name,
+            age: dto.Age
+        );
+    }
+}
+");
         }
 
         protected override CodeFixProvider GetCSharpCodeFixProvider()
