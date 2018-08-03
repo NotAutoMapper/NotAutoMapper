@@ -100,8 +100,43 @@ namespace NotAutoMapper.Test
 
                 foreach (var input in inputs)
                 {
+                    ExecuteTest(models, input, expected, location, message);
                 }
             }
+        }
+
+        private void ExecuteTest(CodeRegion models, CodeRegion input, CodeRegion expected, Location location, string message)
+        {
+            var inputCode = string.Join("\r\n", models.Lines.AddRange(input.Lines));
+            var expectedCode = string.Join("\r\n", models.Lines.AddRange(expected.Lines));
+
+            var offsetLocation = new Location(location.Line + models.Lines.Count, location.Column);
+
+            var expectedDiagnostic = new DiagnosticResult
+            {
+                Id = NotAutoMapperAnalyzer.DiagnosticId,
+                Message = message,
+                Severity = Microsoft.CodeAnalysis.DiagnosticSeverity.Info,
+                Locations = new[] { new DiagnosticResultLocation
+                (
+                    path: "Test0.cs",
+                    line: offsetLocation.Line,
+                    column: offsetLocation.Column
+                )}
+            };
+
+            VerifyCSharpDiagnostic
+            (
+                source: inputCode,
+                expected: expectedDiagnostic
+            );
+
+            VerifyCSharpFix
+            (
+                oldSource: inputCode,
+                newSource: expectedCode,
+                allowNewCompilerDiagnostics: false
+            );
         }
 
         protected override CodeFixProvider GetCSharpCodeFixProvider()
