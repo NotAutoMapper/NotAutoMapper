@@ -81,7 +81,7 @@ namespace NotAutoMapper.Test
         }
 
         [TestMethod]
-        public void TestTestCases()
+        public void TestSourceFiles()
         {
             var files = Directory.EnumerateFiles("TestCases", "*.cs");
 
