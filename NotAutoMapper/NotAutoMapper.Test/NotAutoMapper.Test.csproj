@@ -5,7 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="TestCases\IgnoreStaticProperties.cs" />
     <Compile Remove="TestCases\OneParameter.cs" />
+    <None Include="TestCases\IgnoreStaticProperties.cs">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="TestCases\OneParameter.cs">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
