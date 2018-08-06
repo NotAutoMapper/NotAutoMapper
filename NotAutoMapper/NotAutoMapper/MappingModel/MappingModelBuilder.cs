@@ -105,7 +105,7 @@ namespace NotAutoMapper.MappingModel
                 .ToArray();
 
             var getters = members
-                .Where(m => m.MethodKind == MethodKind.PropertyGet)
+                .Where(m => m.MethodKind == MethodKind.PropertyGet && !m.IsStatic)
                 .Select(m =>
                 (
                     name: m.AssociatedSymbol.Name,
@@ -114,7 +114,7 @@ namespace NotAutoMapper.MappingModel
                 ));
 
             var setters = members
-                .Where(m => m.MethodKind == MethodKind.PropertySet)
+                .Where(m => m.MethodKind == MethodKind.PropertySet && !m.IsStatic)
                 .Select(m =>
                 (
                     name: m.AssociatedSymbol.Name,
