@@ -94,14 +94,15 @@ namespace NotAutoMapper.Test
                 var message = MessageFromComments(topComments);
                 var regions = CodeRegion.FromSource(content.ToImmutableList());
 
-                var models = regions.Single(x => x.Name.Equals("Models", StringComparison.OrdinalIgnoreCase));
+                var models = regions.Where(x => x.Name.Equals("Models", StringComparison.OrdinalIgnoreCase)).ToImmutableList();
                 var expected = regions.Single(x => x.Name.Equals("Expected", StringComparison.OrdinalIgnoreCase));
-                var inputs = regions.Where(x => x.Name.Equals("Input", StringComparison.OrdinalIgnoreCase));
+                var inputs = regions.Where(x => x.Name.Equals("Input", StringComparison.OrdinalIgnoreCase)).ToImmutableList();
 
-                foreach (var input in inputs)
-                {
-                    ExecuteTest(models, input, expected, location, message);
-                }
+                foreach (var model in models)
+                    foreach (var input in inputs)
+                    {
+                        ExecuteTest(model, input, expected, location, message);
+                    }
             }
         }
 
@@ -135,7 +136,7 @@ namespace NotAutoMapper.Test
             (
                 oldSource: inputCode,
                 newSource: expectedCode,
-                allowNewCompilerDiagnostics: false
+                allowNewCompilerDiagnostics: true
             );
         }
 

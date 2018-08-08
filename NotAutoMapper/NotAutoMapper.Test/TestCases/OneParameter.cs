@@ -27,6 +27,41 @@ public class Monkey
 }
 #endregion
 
+#region Models
+public class Human
+{
+    public Human(string name, int age, double height)
+    {
+        Name = name;
+        Age = age;
+        Height = height;
+    }
+
+    public string Name { get; }
+    public int Age { get; }
+    public double Height { get; }
+}
+
+public class Monkey
+{
+    public Monkey(string name, int age)
+    {
+        Name = name;
+        Age = age;
+    }
+
+    public string Name { get; }
+    public int Age { get; }
+}
+#endregion
+
+#region Input
+public class MyMapper
+{
+    public Monkey Map(Human dto)
+}
+#endregion
+
 #region Input
 public class MyMapper
 {

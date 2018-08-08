@@ -61,6 +61,7 @@ namespace NotAutoMapper
         {
             var semanticModel = await context.Document.GetSemanticModelAsync(cancellationToken);
             var newMethod = CreateMapMethod(oldMethod, semanticModel);
+            newMethod = newMethod.WithTrailingTrivia(SyntaxFactory.ParseTrailingTrivia("\r\n"));
 
             var root = await context.Document.GetSyntaxRootAsync(cancellationToken);
 
@@ -93,7 +94,7 @@ namespace NotAutoMapper
 
         private ImmutableDictionary<string, ExpressionSyntax> GetExistingArguments(MethodDeclarationSyntax methodSyntax)
         {
-            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
+            var lastStatement = methodSyntax.Body?.Statements.LastOrDefault();
 
             if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
             {

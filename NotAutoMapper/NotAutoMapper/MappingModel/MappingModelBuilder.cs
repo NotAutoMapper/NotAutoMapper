@@ -58,7 +58,7 @@ namespace NotAutoMapper.MappingModel
         private static IImmutableList<string> GetMappedParameters(IMethodSymbol mapMethod)
         {
             var methodSyntax = mapMethod.DeclaringSyntaxReferences.First().GetSyntax() as MethodDeclarationSyntax;
-            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
+            var lastStatement = methodSyntax.Body?.Statements.LastOrDefault();
 
             if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
             {
