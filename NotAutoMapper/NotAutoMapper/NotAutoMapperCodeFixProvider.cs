@@ -93,7 +93,7 @@ namespace NotAutoMapper
 
         private ImmutableDictionary<string, ExpressionSyntax> GetExistingArguments(MethodDeclarationSyntax methodSyntax)
         {
-            var lastStatement = methodSyntax.Body.Statements.LastOrDefault();
+            var lastStatement = methodSyntax.Body?.Statements.LastOrDefault();
 
             if (lastStatement is ReturnStatementSyntax ret && ret.Expression is ObjectCreationExpressionSyntax cre)
             {
