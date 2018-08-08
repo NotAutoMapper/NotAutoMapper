@@ -136,7 +136,7 @@ namespace NotAutoMapper.Test
             (
                 oldSource: inputCode,
                 newSource: expectedCode,
-                allowNewCompilerDiagnostics: false
+                allowNewCompilerDiagnostics: true
             );
         }
 
