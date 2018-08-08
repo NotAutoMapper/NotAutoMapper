@@ -61,6 +61,7 @@ namespace NotAutoMapper
         {
             var semanticModel = await context.Document.GetSemanticModelAsync(cancellationToken);
             var newMethod = CreateMapMethod(oldMethod, semanticModel);
+            newMethod = newMethod.WithTrailingTrivia(SyntaxFactory.ParseTrailingTrivia("\r\n"));
 
             var root = await context.Document.GetSyntaxRootAsync(cancellationToken);
 
