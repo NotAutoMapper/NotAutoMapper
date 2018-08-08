@@ -59,6 +59,13 @@ public class Monkey
 public class MyMapper
 {
     public Monkey Map(Human dto)
+}
+#endregion
+
+#region Input
+public class MyMapper
+{
+    public Monkey Map(Human dto)
     { }
 }
 #endregion
